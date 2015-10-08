@@ -11,7 +11,7 @@ transforming the data within."
             [com.stuartsierra.dependency :as dep]
             [drake.core :as drake]
             [monger.collection :as coll]
-            [monger.core :as mongo :refer [get-db with-db]]
+            [monger.core :as mongo :refer [get-db]]
             [monger.key-compression :refer [compression-map]]
             [qu.data :as data]
             [qu.data.aggregation :refer [generate-agg-query]]
@@ -95,8 +95,8 @@ in MongoDB."
                                        (compression-map (data/slice-columns sdef))))
                            definition
                            (:slices definition))]
-    (with-db (get-db "metadata")
-             (coll/update "datasets" {:name name}
+    (let [db (get-db "metadata")]
+             (coll/update db "datasets" {:name name}
                           definition
                           :upsert true))))
 
@@ -325,8 +325,8 @@ transform that data into the form we want."
     (doseq [index indexes]
       (if (sequential? index)
         (let [index-map (apply array-map (interleave (map zipfn index) (repeat 1)))]
-          (coll/ensure-index slice index-map))
-        (coll/ensure-index slice {(zipfn index) 1})))))
+          (coll/ensure-index slice index-map)) ; snl: pass database?
+        (coll/ensure-index slice {(zipfn index) 1}))))) ; snl: pass database?
 
 (defn- load-slices
   ([definition]
@@ -381,9 +381,9 @@ transform that data into the form we want."
       (run-drakefile drakefile))
 
     (let [concepts (read-concepts definition)]
-      (with-db (get-db dataset)
+      (let [db (get-db dataset)]
                (log/info "Writing concept data")
-               (write-concept-data concepts)
+               (write-concept-data concepts) ; snl pass database?
                (log/info "Loading slices for dataset" dataset)
                (load-slices concepts definition)))))
 
@@ -415,17 +415,17 @@ transform that data into the form we want."
   (let [dataset (name dataset)
         definition (read-definition dataset)
         concepts (read-concepts definition)]
-    (with-db (get-db dataset)
+    (let [db (get-db dataset)]
              (log/info "Writing concept data")
-             (write-concept-data concepts))))
+             (write-concept-data concepts)))) ; snl pass database?
 
 (defn ez-load-ref-column
   [dataset slice refcol]
   (ez-load-concepts dataset)
-  (with-db (get-db dataset)
+  (let [db (get-db dataset)] ; snl pass database?
            (let [dataset (name dataset)
                  definition (read-definition dataset)
-                 concepts (read-concepts definition)
+                 concepts (read-concepts definition) 
                  slicedef (get-in definition [:slices (keyword slice)])
                  refdef (get-in slicedef [:references (keyword refcol)])
                  zipfn (field-zip-fn slicedef)
@@ -466,18 +466,18 @@ transform that data into the form we want."
    (let [dataset (name dataset)
          definition (read-definition dataset)
          concepts (read-concepts definition)]
-     (with-db (get-db dataset)
+     (let [db (get-db dataset)]
               (when delete
                 (log/info "Dropping slice" slice)
-                (coll/drop slice))
+                (coll/drop db slice))
               (log/info "Loading slice" slice)
-              (load-slice slice concepts definition)
-              (index-slice slice definition)
-              (emit-post-load-sample dataset slice)))))
+              (load-slice slice concepts definition) ; snl pass database?
+              (index-slice slice definition) ; snl pass database?
+              (emit-post-load-sample dataset slice))))) ; snl pass database?
 
 (defn ez-index-slice
   [dataset slice]
   "Given a dataset name and slice name, create indexes for the slice."
   (let [definition (read-definition dataset)]
-    (with-db (get-db dataset)
-             (index-slice slice definition))))
+    (let [db (get-db dataset)]
+             (index-slice slice definition)))) ; snl pass database?

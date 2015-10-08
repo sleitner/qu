@@ -13,7 +13,7 @@
 
 (defn connect-mongo
   [{:keys [uri hosts host port] :as conn} options auth]  
-  (let [options (apply-kw mongo/mongo-options options)
+  (let [options (apply-kw mongo/mongo-options options) ; snl *failing* in 2.0. needs db? options should be clj maps?
         connection 
         (cond
          uri (try (mongo/connect-via-uri uri)

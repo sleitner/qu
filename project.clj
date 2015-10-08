@@ -18,7 +18,7 @@
   :repl-options {:init-ns user
                  :timeout 600000}
   :plugins [[lein-environ "0.4.0"]
-            [lein-embongo "0.2.1"]
+            [lein-embongo "0.2.2"]
             [lein-cloverage "1.0.2"]            
             [test2junit "1.0.1"]            
             [slothcfg "1.0.1"]
@@ -30,7 +30,15 @@
                  [clj-time "0.7.0"]
                  [clojurewerkz/route-one "1.1.0"]                 
                  [clojurewerkz/urly "2.0.0-alpha5" :exclusions [com.google.guava/guava]]
-                 [com.novemberain/monger "1.7.0"]
+;                 [com.novemberain/monger "1.8.0"]
+                 [com.novemberain/monger "2.1.0"]
+;                 [com.novemberain/monger "2.0.0"]
+; mongo = (require '[monger.core :as mg])
+;Caused by: java.lang.RuntimeException: No such var: mongo/connect-via-uri!, compiling:(qu/app/mongo.clj:19:19)
+;http://blog.clojurewerkz.org/blog/2014/05/14/monger-2-dot-0-0-rc1-is-released/
+;                 [com.novemberain/monger "3.0.1"]
+;                 [com.novemberain/monger "3.0.1"]
+;Caused by: java.lang.RuntimeException: No such var: mongo/authenticate, compiling:(qu/app/mongo.clj:10:5)
                  [com.stuartsierra/component "0.2.1"]                 
                  [com.stuartsierra/dependency "0.1.1"]
                  [com.taoensso/timbre "3.1.6" :exclusions [expectations]]
@@ -70,7 +78,7 @@
              :test {:injections [(taoensso.timbre/set-level! :error)]}
              :dev {:source-paths ["dev"]
                    :env {:dev true}
-                   :embongo {:version "2.6.0"}
+                   :embongo {:version "3.0.6"}
                    :codox {:output-dir "doc/codox"
                            :src-dir-uri "https://github.com/cfpb/qu/blob/master"
                            :src-linenum-anchor-prefix "L"

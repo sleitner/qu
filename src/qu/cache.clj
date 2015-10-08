@@ -16,7 +16,7 @@ the same backing database have access to the same data."
             [lonocloud.synthread :as ->]
             [monger.collection :as coll]
             [monger.conversion :as conv]
-            [monger.core :as mongo :refer [get-db with-db]]
+            [monger.core :as mongo :refer [get-db]]
             [qu.data.aggregation :as agg]
             [qu.data.result :refer [->DataResult]]
             [qu.metrics :as metrics]
@@ -77,14 +77,13 @@ the same backing database have access to the same data."
   ([database query]
      (get-collection database query nil))
   ([database query not-found]
-     (with-db database
        (let [collection (query-to-key query)]
-         (if (coll/exists? collection)
+         (if (coll/exists? database collection)
            (do (log/info "FOUND Aggregation - ID:" collection)
             (metrics/increment "cache.hit.count")
              (extract-result collection query))
            (do (metrics/increment "cache.wait.count")
-               not-found))))))
+               not-found)))))
 
 (defn add-to-cache
   "Add the specified aggregation to the cache by running it through
@@ -95,37 +94,34 @@ the same backing database have access to the same data."
         source-database (mongo/get-db (:dataset aggmap))
         to-collection (:to aggmap)]
     (log/info "Running aggregation query:" source-database agg-query)
-    (with-db source-database
-      (let [raw-result (mongo/command (sorted-map :aggregate (:from aggmap) :pipeline agg-query :allowDiskUse true))]
+      (let [raw-result (mongo/command source-database (sorted-map :aggregate (:from aggmap) :pipeline agg-query :allowDiskUse true))]
         (log/info "Raw Result for aggregation" (:to aggmap) raw-result)
-        raw-result))))
+        raw-result)))
 
 (defn touch-cache
   "Sets the created value for a query to now."
   [cache query]
   (let [key (query-to-key query)
         dataset (:dataset query)]
-    (with-db (:database cache)
-      (coll/update "metadata"
+      (coll/update (:database cache) "metadata"
                    {:_id key}
                    {"$set" {:created (now)
                             :dataset dataset}}
-                   :upsert true))))
+                   :upsert true)))
 
 (defn clean-cache
   "Clean out the cache according to rules defined by the clean-fn or another fun.
    Fun should take a cache and emit a seq of ids to clear."
   ([cache] (clean-cache cache (:clean-fn cache)))
   ([cache fun]
-     (mongo/with-db (:database cache)
        (doseq [key (fun cache)]
-         (let [metadata (coll/find-one-as-map "metadata" {:_id key})
+         (let [metadata (coll/find-one-as-map (:database cache) "metadata" {:_id key})
                dataset (:dataset metadata)
                db (when dataset (mongo/get-db dataset))]
            (when db
-             (coll/remove-by-id *work-collection* key)         
+             (coll/remove-by-id (:database cache) *work-collection* key)         
              (coll/drop db key)
-             (coll/remove-by-id "metadata" key)))))))
+             (coll/remove-by-id (:database cache) "metadata" key))))))
 
 (defn wipe-cache
   "Wipe out the entire cache, including the list of jobs."
@@ -148,36 +144,32 @@ the same backing database have access to the same data."
           database (get-db (:dataset query))]
       (get-collection database query not-found)))
   (has? [cache query]
-    (with-db (get-db (:dataset query))
+    (let [ dbq (get-db (:dataset query))]
       (let [key (query-to-key query)]
-        (coll/exists? key))))
+        (coll/exists? dbq key))))
   (hit [cache query]
     (let [key (query-to-key query)]
-      (with-db database
-        (coll/update "metadata"
+        (coll/update database "metadata"
                      {:_id key}
                      {"$set" {:last_viewed (now)}
                       "$inc" {:view_count 1}}
-                     :upsert true)))
+                     :upsert true))
     cache)
   (miss [cache query result]
     (let [key (query-to-key query)
           database (get-db (:dataset query))]
-      (with-db database
-        (coll/drop key)
-        (coll/insert-batch key result))))
+        (coll/drop database key)
+        (coll/insert-batch database key result)))
   (evict [cache query]
     (let [key (query-to-key query)
           database (get-db (:dataset query))]
-      (with-db database
-        (coll/drop key))))
+        (coll/drop database key)))
   (seed [cache queries]
     (doseq [[query result] queries]
       (let [key (query-to-key query)
             database (get-db (:dataset query))]
-        (with-db database
-          (coll/drop key)
-          (coll/insert-batch key result))))))
+          (coll/drop database key)
+          (coll/insert-batch database key result)))))
 
 (defn create-query-cache
   "Create a query cache. If you do not specify a database, the default
@@ -230,7 +222,7 @@ one of `query_cache` will be used."
 (defn- process-next-job
   [worker]
   (when-not (:kill worker)
-    (with-db (get-in worker [:cache :database])
+    (let [db (get-in worker [:cache :database])]
       (if-let [job (find-and-claim-unprocessed)]
         (let [job-id (:_id job)]
           (log/info "Aggregation" job-id "started")
@@ -259,15 +251,15 @@ one of `query_cache` will be used."
   record. If the aggregation is already on the queue, then the record
   of the existing job is returned."
   [cache aggmap]
-  (with-db (:database cache)
+  (let [db (:database cache)]
     (try
-      (metrics/increment "cache.queue.count")
-      (coll/insert-and-return *work-collection* {:_id (:to aggmap)
+      (metrics/increment db "cache.queue.count")
+      (coll/insert-and-return db *work-collection* {:_id (:to aggmap)
                                                  :status "unprocessed"
                                                  :created (now)
                                                  :aggmap (pr-str aggmap)})
       (catch MongoException$DuplicateKey e
-        (coll/find-map-by-id *work-collection* (:to aggmap))))))
+        (coll/find-map-by-id db *work-collection* (:to aggmap))))))
 
 (defn start-worker
   "Start a cache worker. This will continue to process jobs until stopped.

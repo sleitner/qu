@@ -16,7 +16,7 @@ after retrieval."
             [cheshire.core :as json]
             [cheshire.generate :refer [add-encoder encode-str]]
             [monger
-             [core :as mongo :refer [with-db get-db]]
+             [core :as mongo :refer [get-db]]
              [query :as q]
              [collection :as coll]
              [conversion :as conv]
@@ -30,8 +30,8 @@ after retrieval."
   "Get metadata for all datasets. Information about the datasets is
 stored in a Mongo database called 'metadata'."
   []
-  (with-db (get-db "metadata")
-    (coll/find-maps "datasets" {})))
+  (let [db (get-db "metadata")]
+    (coll/find-maps db "datasets" {})))
 
 (defn get-dataset-names
   "List all datasets."
@@ -41,8 +41,8 @@ stored in a Mongo database called 'metadata'."
 (defn get-metadata
   "Get metadata for one dataset."
   [dataset]
-  (with-db (get-db "metadata")
-    (coll/find-one-as-map "datasets" {:name dataset})))
+  (let [db (get-db "metadata")]
+    (coll/find-one-as-map db "datasets" {:name dataset})))
 
 (defn slice-columns
   "Slices are made up of dimensions, columns that can be queried, and
@@ -58,8 +58,8 @@ stored in a Mongo database called 'metadata'."
 (defn concept-data
   "Get the data table for a concept."
   [dataset concept]
-  (with-db (get-db dataset)
-    (coll/find-maps (concept-collection concept))))
+  (let [db (get-db dataset)]
+    (coll/find-maps db (concept-collection concept))))
 
 (defn field-zip-fn
   "Given a dataset and a slice, return a function that will compress
@@ -96,8 +96,8 @@ stored in a Mongo database called 'metadata'."
        (str/join " " ["Mongo query"
                       (str database "/" (name collection))
                       (json/generate-string find-map)])
-       (with-db (get-db database)
-         (with-open [cursor (doto (coll/find collection (:query find-map) (:fields find-map))
+       (let [db (get-db database)]
+         (with-open [cursor (doto (coll/find collection db (:query find-map) (:fields find-map))
                               (.limit (:limit find-map 0))
                               (.skip (:skip find-map 0))
                               (.sort (conv/to-db-object (:sort find-map))))]
