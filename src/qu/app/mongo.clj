@@ -16,20 +16,22 @@
   (let [options (apply-kw mongo/mongo-options options)
         connection 
         (cond
-         uri (try (mongo/connect-via-uri! uri)
+         uri (try (mongo/connect-via-uri uri)
                   (catch Exception e
                     (log/error "The Mongo URI specified is invalid.")))
          hosts (let [addresses (map #(apply mongo/server-address %) hosts)]
-                 (mongo/connect! addresses options))
-         :else (mongo/connect! (mongo/server-address host port) options))]
+                 (mongo/connect addresses options))
+         :else (mongo/connect (mongo/server-address host port) options))]
     (if (map? auth)
       (authenticate-mongo auth))
     connection))
 
 (defn disconnect-mongo
   []
-  (when (bound? #'mongo/*mongodb-connection*)
-    (mongo/disconnect!)))
+;try disconnecting regardless; there's no global mongodb-connection  
+;https://github.com/clojure-cookbook/clojure-cookbook/blob/master/06_databases/6-08_mongo.asciidoc
+; (when (bound? #'mongo/*mongodb-connection*)
+    (mongo/disconnect))
 
 (defrecord Mongo [conn options auth]
   component/Lifecycle
