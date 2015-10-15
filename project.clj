@@ -46,6 +46,7 @@
                  [org.clojure/data.csv "0.1.2"]
                  [org.clojure/data.json "0.2.4"]
                  [org.codehaus.jsr166-mirror/jsr166y "1.7.0"]                 
+                 [org.mongodb/mongodb-driver "3.0.4"] ; monger uses an older java driver, so this is almost not used by Qu.
                  [parse-ez "0.3.6"]
                  [prismatic/schema "0.2.1"]
                  [ring "1.2.2"]                 
